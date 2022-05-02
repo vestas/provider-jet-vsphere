@@ -27,7 +27,7 @@ import (
 
 	"github.com/crossplane/terrajet/pkg/terraform"
 
-	"github.com/crossplane-contrib/provider-jet-template/apis/v1alpha1"
+	"github.com/crossplane-contrib/provider-jet-vsphere/apis/v1alpha1"
 )
 
 const (
@@ -36,8 +36,17 @@ const (
 	errGetProviderConfig    = "cannot get referenced ProviderConfig"
 	errTrackUsage           = "cannot track ProviderConfig usage"
 	errExtractCredentials   = "cannot extract credentials"
-	errUnmarshalCredentials = "cannot unmarshal template credentials as JSON"
+	errUnmarshalCredentials = "cannot unmarshal vsphere credentials as JSON"
 )
+
+type vSphereCredentials struct {
+	User               string `json:"user"`
+	Password           string `json:"password"`
+	VSphereServer      string `json:"vsphere_server"`
+	AllowUnverifiedSSL bool   `json:"allow_unverified_ssl"`
+	VIMKeepAlive       int    `json:"vim_keep_alive"`
+	APITimeout         int    `json:"api_timeout"`
+}
 
 // TerraformSetupBuilder builds Terraform a terraform.SetupFn function which
 // returns Terraform provider setup configuration
@@ -69,24 +78,20 @@ func TerraformSetupBuilder(version, providerSource, providerVersion string) terr
 		if err != nil {
 			return ps, errors.Wrap(err, errExtractCredentials)
 		}
-		templateCreds := map[string]string{}
-		if err := json.Unmarshal(data, &templateCreds); err != nil {
+		vsphereCreds := vSphereCredentials{}
+		if err := json.Unmarshal(data, &vsphereCreds); err != nil {
 			return ps, errors.Wrap(err, errUnmarshalCredentials)
 		}
 
-		// set environment variables for sensitive provider configuration
-		// Deprecated: In shared gRPC mode we do not support injecting
-		// credentials via the environment variables. You should specify
-		// credentials via the Terraform main.tf.json instead.
-		/*ps.Env = []string{
-			fmt.Sprintf("%s=%s", "HASHICUPS_USERNAME", templateCreds["username"]),
-			fmt.Sprintf("%s=%s", "HASHICUPS_PASSWORD", templateCreds["password"]),
-		}*/
 		// set credentials in Terraform provider configuration
-		/*ps.Configuration = map[string]interface{}{
-			"username": templateCreds["username"],
-			"password": templateCreds["password"],
-		}*/
+		ps.Configuration = map[string]interface{}{
+			"user":                 vsphereCreds.User,
+			"password":             vsphereCreds.Password,
+			"vsphere_server":       vsphereCreds.VSphereServer,
+			"allow_unverified_ssl": vsphereCreds.AllowUnverifiedSSL,
+			"vim_keep_alive":       vsphereCreds.VIMKeepAlive,
+			"api_timeout":          vsphereCreds.APITimeout,
+		}
 		return ps, nil
 	}
 }
